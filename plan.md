@@ -75,3 +75,12 @@ Phase 1: Foundations & Discovery (Month 1)
    * 5.3: Documentation & Handover:
        * Write thorough documentation for the project architecture, setup, and usage.
        * Prepare your final project report and presentation.
+
+The project divides nicely into two main streams:
+
+   * Intern 1 "Glissa" (Backend & AI Focus): Would own the AI/ML part. This includes Phase 3 (AI Module Development), the Python scripting for
+     API interactions, and the data science aspects of evaluating the model (Task 5.1).
+   * Intern 2 "LFakh" (DevOps & Frontend Focus): Would own the infrastructure and user interface. This includes Phase 2 (DevSecOps Pipeline),
+     Phase 4 (React Dashboard), and setting up the complete CI/CD automation (Task 5.2).
+
+  Both interns would collaborate heavily on Phase 1 (Discovery & Design) and Phase 5 (Final Documentation).

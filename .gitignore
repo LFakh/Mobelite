@@ -1,3 +1,7 @@
 node_modules/
 .env
 feather.gguf
+package.json
+package-lock.json
+shell.nix
+documentaion.md

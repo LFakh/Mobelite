@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # AI Service for vulnerability prioritization
+  ai_service:
+    build:
+      context: ./ai_service
+    container_name: pfe_ai_service
+    volumes:
+      # Mount the model file into the container. 
+      # We assume feather.gguf is in the root project directory.
+      - ./feather.gguf:/app/feather.gguf:ro
+    ports:
+      # Expose on host port 8001 to avoid conflicts with DefectDojo's default port 8080
+      - "8001:8000"
+    networks:
+      - pfe_network
+    restart: unless-stopped
+
+  # React Dashboard for visualization
+  dashboard:
+    build:
+      context: ./dashboard
+    container_name: pfe_dashboard
+    ports:
+      # Expose the dashboard on port 3000
+      - "3000:80"
+    networks:
+      - pfe_network
+    depends_on:
+      - ai_service
+    restart: unless-stopped
+
+networks:
+  # This shared network allows our containers to talk to the DefectDojo containers.
+  pfe_network:
+    # 'external: true' means we expect this network to be created manually.
+    # This allows multiple docker-compose files to share the same network.
+    external: true
+    name: pfe_network
