@@ -85,8 +85,74 @@ The primary challenge of this initial phase was adapting a standard Docker-based
 5.  **Execution Path:** `podman-compose` failed to find the Dockerfiles when run from the root directory due to relative path issues.
     *   **Solution:** The build command must be run from *within* the `defectdojo/` directory.
 
-## 7. Next Steps
+## 7. Project Roadmap
 
-1.  **Build the DefectDojo Stack (User Action):** Run the provided command in your terminal.
-2.  **Launch Custom Services:** Once DefectDojo is running, launch the `ai_service` and `dashboard` containers.
-3.  **Day 2: AI Service Development:** Implement the FastAPI backend to load the `feather.gguf` model and expose a prediction endpoint.
+This section outlines the detailed plan for completing the DevSecOps automation project. Each task will be tracked with a checkbox to indicate progress.
+
+### Phase 1: Foundation & Setup (Day 1 - Current)
+
+- [x] **Task 1.1: NixOS Environment Setup:** Create `shell.nix` for reproducible `podman` and `podman-compose` tooling.
+- [x] **Task 1.2: Component Scaffolding:** Create base directories and initial files for `ai_service` (FastAPI) and `dashboard` (React/Vite).
+- [x] **Task 1.3: DefectDojo Integration:** Clone the official `django-DefectDojo` repository.
+- [x] **Task 1.4: Initial Containerization:** Develop/modify `Dockerfile`s for all services and `docker-compose.yml` files for orchestration.
+- [x] **Task 1.5: Network Configuration:** Establish the shared external `pfe_network` for inter-service communication.
+- [x] **Task 1.6: NixOS/Podman Issue Resolution:** Address specific challenges related to Podman on NixOS (short-name resolution, build order, network definition).
+- [ ] **Task 1.7: Initial DefectDojo Stack Launch:** Successfully build and run the full `defectdojo` container stack using the command:
+    ```bash
+    cd defectdojo && podman-compose up -d && cd ..
+    ```
+    *Note: The `--build` flag is now omitted as images should be pre-built or cached.*
+- [ ] **Task 1.8: Ancillary Services Launch:** Bring up the `ai_service` and `dashboard` containers using the root `docker-compose.yml`.
+- [ ] **Task 1.9: Connectivity Verification:** Confirm all services are running and can communicate over the `pfe_network`.
+
+### Phase 2: AI Service Development (Day 2)
+
+- [ ] **Task 2.1: Model Integration:**
+    - Modify `ai_service/main.py` to use `llama-cpp-python` to load the `feather.gguf` LLM.
+    - Ensure `feather.gguf` is accessible within the `ai_service` container (e.g., via volume mount in `docker-compose.yml`).
+    - Update `ai_service/requirements.txt` with `llama-cpp-python`.
+- [ ] **Task 2.2: FastAPI Endpoint Creation:**
+    - Create a `/prioritize` endpoint in `ai_service/main.py` that accepts vulnerability data (e.g., description, severity, CWE).
+    - The endpoint should construct an LLM prompt from this data.
+- [ ] **Task 2.3: Prompt Engineering:**
+    - Design a robust prompt for the LLM to analyze vulnerability data and output a priority score (e.g., Critical, High, Medium, Low, Informational) and a concise justification.
+- [ ] **Task 2.4: Response Parsing:**
+    - Implement logic to parse the LLM's raw text response into a structured JSON object (e.g., `{"new_priority": "High", "justification": "..."}`).
+- [ ] **Task 2.5: Unit Testing:** Add basic unit tests for the `/prioritize` endpoint, focusing on prompt construction and response parsing.
+
+### Phase 3: Dashboard Development (Day 3)
+
+- [ ] **Task 3.1: UI Scaffolding:**
+    - In `dashboard/src/App.jsx`, create basic UI components for a dashboard layout (e.g., using a component library).
+- [ ] **Task 3.2: DefectDojo API Integration (Data Fetching):**
+    - Implement a service in the React app to fetch a list of findings from the DefectDojo API. (Requires API key and endpoint discovery).
+- [ ] **Task 3.3: Finding Display:**
+    - Display the fetched DefectDojo findings in an interactive table, showing relevant details (title, severity, etc.).
+- [ ] **Task 3.4: AI Service Integration (Prioritization Trigger):**
+    - Add a "Prioritize with AI" button for each finding.
+    - On click, send the finding's data to the `ai_service`'s `/prioritize` endpoint.
+- [ ] **Task 3.5: AI Result Display:**
+    - Show the AI's returned priority and justification for each finding in the dashboard UI.
+- [ ] **Task 3.6: DefectDojo Update (Optional Stretch Goal):**
+    - Implement functionality to update the finding's priority in DefectDojo via its API using the AI-generated score.
+
+### Phase 4: Automation & CI/CD (Day 4-5)
+
+- [ ] **Task 4.1: Security Scanning Tool Integration:**
+    - Select and integrate a SAST tool (e.g., `semgrep`) and a dependency scanner (e.g., `trivy`).
+    - Create a script to run these scans against a sample vulnerable application or project.
+- [ ] **Task 4.2: GitHub Actions Workflow Creation:**
+    - Create a `.github/workflows/devsecops.yml` file.
+    - Define a workflow that triggers on specific events (e.g., `push` to `main` branch).
+- [ ] **Task 4.3: Workflow Steps Implementation:**
+    - **Checkout Code.**
+    - **Run Security Scans:** Execute the scanning script (from Task 4.1).
+    - **Upload Scan Results to DefectDojo:** Use DefectDojo API to create an engagement and upload scan results (e.g., SARIF format).
+    - **(Advanced) AI-Powered Prioritization within CI:** Implement a step to automatically trigger the `ai_service` for prioritization of newly imported findings in DefectDojo, then update DefectDojo.
+
+### Phase 5: Finalization (Day 6-7)
+
+- [ ] **Task 5.1: Documentation Finalization:** Review and complete `documentation.md`, adding detailed usage instructions and deployment guidelines.
+- [ ] **Task 5.2: Secure Secret Management:** Implement proper environment variable handling for sensitive data in `docker-compose.yml` files and GitHub Actions.
+- [ ] **Task 5.3: End-to-End Testing:** Perform comprehensive testing of the entire DevSecOps pipeline, from code commit to AI prioritization and dashboard visualization.
+
