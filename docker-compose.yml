@@ -21,6 +21,7 @@ services:
   dashboard:
     build:
       context: ./dashboard
+    image: localhost/mob_dashboard:latest # Explicitly define image name
     container_name: pfe_dashboard
     ports:
       # Expose the dashboard on port 3000
