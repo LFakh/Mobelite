@@ -17,7 +17,7 @@ The initial project setup is complete. All major components have been scaffolded
 - [x] **Component Scaffolding:** Placeholder applications for the `ai_service` (FastAPI) and `dashboard` (React) have been created.
 - [x] **Vulnerability Management System:** The official OWASP DefectDojo application has been cloned and its configuration has been adapted for this project.
 - [x] **Containerization:** `Dockerfile`s for all custom services and `docker-compose.yml` files for orchestration have been created and heavily modified to work within the specific constraints of the user's system.
-- [ ] **Launch DefectDojo Stack:** The final step of Day 1 is to build and run the DefectDojo containers using the command provided below.
+- [x] **Launch DefectDojo Stack:** The final step of Day 1 is to build and run the DefectDojo containers using the command provided below.
 
 ## 3. Build Command
 
@@ -28,6 +28,47 @@ cd defectdojo && podman-compose up --build -d && cd ..
 ```
 
 Once this command completes successfully, you can proceed to the next steps.
+
+## 4. Current State: Day 2 - AI Service Development
+
+Day 2 focused on building out the core functionality of the `ai_service` to integrate the LLM for vulnerability prioritization.
+
+**Progress Checklist:**
+- [x] **Task 2.1: Model Integration:**
+    - Modified `ai_service/main.py` to use `llama-cpp-python` to load the `feather.gguf` LLM.
+    - Ensured `feather.gguf` is accessible within the `ai_service` container (via volume mount in `docker-compose.yml`).
+    - Updated `ai_service/requirements.txt` with `llama-cpp-python`, `pytest`, `requests`, and `httpx`.
+- [x] **Task 2.2: FastAPI Endpoint Creation:**
+    - Created a `/prioritize` endpoint in `ai_service/main.py` that accepts vulnerability data (description, severity, CWE) via a Pydantic model.
+    - The endpoint constructs an LLM prompt from this data.
+- [x] **Task 2.3: Prompt Engineering:**
+    - Designed a robust prompt for the LLM to analyze vulnerability data and output a priority score (Critical, High, Medium, Low, Informational) and a concise justification in a strict JSON format.
+- [x] **Task 2.4: Response Parsing:**
+    - Implemented logic to parse the LLM's raw text response, extracting the first valid JSON object and handling potential errors (e.g., malformed JSON, no JSON found).
+    - Updated error responses to use `JSONResponse` with appropriate HTTP status codes (500).
+- [x] **Task 2.5: Unit Testing:** Added basic unit tests (`ai_service/test_main.py`) for the `/prioritize` endpoint, focusing on mocking the LLM call, prompt construction, and robust response parsing.
+
+## 5. Day 2 Summary: Commands and Tools Used
+
+This section outlines the key commands and tools utilized during Day 2 for AI Service development.
+
+*   **`read_file documentation.md`**: Used to understand the project roadmap and current state.
+*   **`read_file ai_service/requirements.txt`**: Used to inspect existing dependencies.
+*   **`replace ai_service/requirements.txt ...`**: Used to add `llama-cpp-python`, `pytest`, `requests`, and `httpx` dependencies.
+*   **`read_file ai_service/main.py`**: Used to inspect the FastAPI application code.
+*   **`write_file ai_service/main.py ...`**: Used repeatedly to fix syntax/indentation errors and apply new logic to `main.py`. This was preferred over `replace` for ensuring a clean state due to persistent issues with partial replacements.
+*   **`read_file docker-compose.yml`**: Used to inspect Docker Compose configurations.
+*   **`replace docker-compose.yml ...`**: Used to add a volume mount for `./ai_service:/app` to the `ai_service` service definition, enabling live code reloading.
+*   **`replace ai_service/Dockerfile ...`**: Used to add the `--reload` flag to the `uvicorn` command, enabling automatic application reloading on code changes.
+*   **`podman network inspect pfe_network`**: Used to verify the existence of the shared network.
+*   **`podman-compose down`**: Used to stop and remove containers cleanly.
+*   **`podman-compose up --build -d ai_service`**: Used to build and run the `ai_service` container, applying `Dockerfile` and `requirements.txt` changes.
+*   **`podman-compose restart ai_service`**: Used to restart the `ai_service` container, applying `main.py` code changes due to the volume mount and `--reload` flag.
+*   **`podman-compose logs ai_service`**: Crucial for debugging issues, inspecting LLM output, and identifying runtime errors (e.g., `IndentationError`, `SyntaxError`, JSON parsing errors).
+*   **`curl -X POST -H "Content-Type: application/json" -d '...' http://localhost:8001/prioritize`**: Used extensively to test the `/prioritize` endpoint with various inputs and verify responses.
+*   **`rm ai_service/test_main.py`**: Used to ensure a clean slate for the test file due to previous editing issues.
+*   **`write_file ai_service/test_main.py ...`**: Used to create the test file with unit tests for the `/prioritize` endpoint.
+*   **`podman-compose exec ai_service pytest /app/test_main.py`**: Used to run the unit tests inside the `ai_service` container.
 
 ## 8. System Architecture Details
 
@@ -43,7 +84,7 @@ This `docker-compose.yml` orchestrates the core DefectDojo application and its d
     *   **Dependencies:** `uwsgi` (ensures the application server is running before Nginx starts).
     *   **Ports:** Maps host port `8080` to container port `80` (HTTP) and host port `8443` to container port `443` (HTTPS).
     *   **Volumes:** Mounts `defectdojo_media` volume to `/usr/share/nginx/html/media` for persistent storage of user-uploaded files and static assets.
-    *   **Environment Variables:** Configures `NGINX_METRICS_ENABLED`, `DD_UWSGI_HOST` (set to `uwsgi` for internal communication), `DD_UWSGI_PORT`.
+    *   **Environment Variables:** Configures `NGINX_METRICS_ENABLED`, `DD_UWSGI_HOST` (set to `uwsgi` for internal communication), `DD_UWSWI_PORT`.
     *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
 
 *   **`uwsgi`**
@@ -198,22 +239,23 @@ This section outlines the detailed plan for completing the DevSecOps automation 
     ```
     *Note: The `--build` flag is now omitted as images should be pre-built or cached.*
 - [x] **Task 1.8: Ancillary Services Launch:** Bring up the `ai_service` and `dashboard` containers using the root `docker-compose.yml`.
-- [ ] **Task 1.9: Connectivity Verification:** Confirm all services are running and can communicate over the `pfe_network`.
+- [x] **Task 1.9: Connectivity Verification:** Confirm all services are running and can communicate over the `pfe_network`.
 
 ### Phase 2: AI Service Development (Day 2)
 
-- [ ] **Task 2.1: Model Integration:**
-    - Modify `ai_service/main.py` to use `llama-cpp-python` to load the `feather.gguf` LLM.
-    - Ensure `feather.gguf` is accessible within the `ai_service` container (e.g., via volume mount in `docker-compose.yml`).
-    - Update `ai_service/requirements.txt` with `llama-cpp-python`.
-- [ ] **Task 2.2: FastAPI Endpoint Creation:**
-    - Create a `/prioritize` endpoint in `ai_service/main.py` that accepts vulnerability data (e.g., description, severity, CWE).
-    - The endpoint should construct an LLM prompt from this data.
-- [ ] **Task 2.3: Prompt Engineering:**
-    - Design a robust prompt for the LLM to analyze vulnerability data and output a priority score (e.g., Critical, High, Medium, Low, Informational) and a concise justification.
-- [ ] **Task 2.4: Response Parsing:**
-    - Implement logic to parse the LLM's raw text response into a structured JSON object (e.g., `{"new_priority": "High", "justification": "..."}`).
-- [ ] **Task 2.5: Unit Testing:** Add basic unit tests for the `/prioritize` endpoint, focusing on prompt construction and response parsing.
+- [x] **Task 2.1: Model Integration:**
+    - Modified `ai_service/main.py` to use `llama-cpp-python` to load the `feather.gguf` LLM.
+    - Ensured `feather.gguf` is accessible within the `ai_service` container (via volume mount in `docker-compose.yml`).
+    - Updated `ai_service/requirements.txt` with `llama-cpp-python`, `pytest`, `requests`, and `httpx`.
+- [x] **Task 2.2: FastAPI Endpoint Creation:**
+    - Created a `/prioritize` endpoint in `ai_service/main.py` that accepts vulnerability data (description, severity, CWE) via a Pydantic model.
+    - The endpoint constructs an LLM prompt from this data.
+- [x] **Task 2.3: Prompt Engineering:**
+    - Designed a robust prompt for the LLM to analyze vulnerability data and output a priority score (Critical, High, Medium, Low, Informational) and a concise justification in a strict JSON format.
+- [x] **Task 2.4: Response Parsing:**
+    - Implemented logic to parse the LLM's raw text response, extracting the first valid JSON object and handling potential errors (e.g., malformed JSON, no JSON found).
+    - Updated error responses to use `JSONResponse` with appropriate HTTP status codes (500).
+- [x] **Task 2.5: Unit Testing:** Added basic unit tests (`ai_service/test_main.py`) for the `/prioritize` endpoint, focusing on mocking the LLM call, prompt construction, and robust response parsing.
 
 ### Phase 3: Dashboard Development (Day 3)
 
@@ -250,4 +292,3 @@ This section outlines the detailed plan for completing the DevSecOps automation 
 - [ ] **Task 5.1: Documentation Finalization:** Review and complete `documentation.md`, adding detailed usage instructions and deployment guidelines.
 - [ ] **Task 5.2: Secure Secret Management:** Implement proper environment variable handling for sensitive data in `docker-compose.yml` files and GitHub Actions.
 - [ ] **Task 5.3: End-to-End Testing:** Perform comprehensive testing of the entire DevSecOps pipeline, from code commit to AI prioritization and dashboard visualization.
-

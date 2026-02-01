@@ -7,6 +7,8 @@ services:
       context: ./ai_service
     container_name: pfe_ai_service
     volumes:
+      # Mount the application code directory for live reloading
+      - ./ai_service:/app
       # Mount the model file into the container. 
       # We assume feather.gguf is in the root project directory.
       - ./feather.gguf:/app/feather.gguf:ro
