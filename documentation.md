@@ -70,105 +70,154 @@ This section outlines the key commands and tools utilized during Day 2 for AI Se
 
 This section provides a granular look at each container involved in the project, detailing their purpose, configurations, and interconnections.
 
-### 8.1. From `defectdojo/docker-compose.yml` (DefectDojo Stack)
+### 8.1. System Architecture Diagram
 
-This `docker-compose.yml` orchestrates the core DefectDojo application and its dependencies.
+Below is the Graphviz DOT content representing the system architecture. You can use an online Graphviz renderer (e.g., https://dreampuf.github.io/GraphvizOnline/) or a local Graphviz installation to visualize this diagram.
 
-*   **`nginx`**
-    *   **Purpose:** Front-end web server for DefectDojo. Serves static files, handles incoming HTTP/HTTPS requests, and acts as a reverse proxy to the `uwsgi` application server.
-    *   **Image:** `defectdojo/defectdojo-nginx:latest` (built from `Dockerfile.nginx-alpine`).
-    *   **Dependencies:** `uwsgi` (ensures the application server is running before Nginx starts).
-    *   **Ports:** Maps host port `8080` to container port `80` (HTTP) and host port `8443` to container port `443` (HTTPS).
-    *   **Volumes:** Mounts `defectdojo_media` volume to `/usr/share/nginx/html/media` for persistent storage of user-uploaded files and static assets.
-    *   **Environment Variables:** Configures `NGINX_METRICS_ENABLED`, `DD_UWSGI_HOST` (set to `uwsgi` for internal communication), `DD_UWSWI_PORT`.
-    *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
+```dot
+digraph Architecture {
+    rankdir=LR;
+    node [shape=box style="filled" fillcolor="lightgray"];
 
-*   **`uwsgi`**
-    *   **Purpose:** The main DefectDojo Django application server. It processes dynamic web requests from Nginx and communicates with the PostgreSQL database and Celery workers.
-    *   **Image:** `defectdojo/defectdojo-django:latest` (built from `Dockerfile.django-debian`).
-    *   **Dependencies:** `initializer` (ensures database is migrated and initial setup is complete), `postgres` (database must be running), `valkey` (Redis-compatible store must be running).
-    *   **Ports:** Exposes internal port `3031` for Nginx to proxy requests. Not directly exposed to the host.
-    *   **Volumes:** Mounts `./docker/extra_settings` to `/app/docker/extra_settings` for custom Django settings, and `defectdojo_media` to `/app/media` for persistent media storage.
-    *   **Environment Variables:** Configures critical settings like `DD_DEBUG`, `DD_DJANGO_METRICS_ENABLED`, `DD_ALLOWED_HOSTS`, `DD_DATABASE_URL`, `DD_CELERY_BROKER_URL`, `DD_SECRET_KEY`, `DD_CREDENTIAL_AES_256_KEY`, `DD_DATABASE_READINESS_TIMEOUT`.
-    *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
+    subgraph cluster_defectdojo {
+        label = "DefectDojo Stack";
+        color = blue;
 
-*   **`celerybeat`**
-    *   **Purpose:** Celery beat scheduler, responsible for initiating periodic tasks defined within DefectDojo (e.g., scheduled reports, data synchronization).
-    *   **Image:** Same as `uwsgi` (`defectdojo/defectdojo-django:latest`).
-    *   **Dependencies:** Same as `uwsgi`.
-    *   **Ports:** None.
-    *   **Volumes:** Mounts `./docker/extra_settings`.
-    *   **Environment Variables:** Same critical database and secret keys as `uwsgi`.
-    *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
+        dd_postgres [label="PostgreSQL\n(dd_postgres)" fillcolor="lightblue"];
+        dd_valkey [label="Valkey/Redis\n(dd_valkey)" fillcolor="lightblue"];
+        dd_uwsgi [label="DefectDojo Django App\n(dd_uwsgi)" fillcolor="lightgreen"];
+        dd_celerybeat [label="Celery Beat\n(dd_celerybeat)" fillcolor="lightgreen"];
+        dd_celeryworker [label="Celery Worker\n(dd_celeryworker)" fillcolor="lightgreen"];
+        dd_nginx [label="DefectDojo Nginx\n(dd_nginx)" fillcolor="lightpink"];
+    }
 
-*   **`celeryworker`**
-    *   **Purpose:** Celery worker, executes asynchronous background tasks dispatched by the Django application (e.g., vulnerability imports, report generation).
-    *   **Image:** Same as `uwsgi` (`defectdojo/defectdojo-django:latest`).
-    *   **Dependencies:** Same as `uwsgi`.
-    *   **Ports:** None.
-    *   **Volumes:** Mounts `./docker/extra_settings` and `defectdojo_media`.
-    *   **Environment Variables:** Same critical database and secret keys as `uwsgi`.
-    *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
+    pfe_ai_service [label="AI Service\n(pfe_ai_service)" fillcolor="gold"];
+    pfe_dashboard [label="React Dashboard\n(pfe_dashboard)" fillcolor="orange"];
 
-*   **`initializer`**
-    *   **Purpose:** A temporary container designed to run database migrations and create the initial superuser account for DefectDojo upon its first launch. It exits after completing its tasks.
-    *   **Image:** Same as `uwsgi` (`defectdojo/defectdojo-django:latest`).
-    *   **Dependencies:** `postgres` (database must be running).
-    *   **Ports:** None.
-    *   **Volumes:** Mounts `./docker/extra_settings`.
-    *   **Environment Variables:** Configures `DD_DATABASE_URL`, `DD_ADMIN_USER`, `DD_ADMIN_MAIL`, `DD_ADMIN_FIRST_NAME`, `DD_ADMIN_LAST_NAME`, `DD_INITIALIZE`, `DD_SECRET_KEY`, `DD_CREDENTIAL_AES_256_KEY`, `DD_DATABASE_READINESS_TIMEOUT`.
-    *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
+    # Connections within DefectDojo stack
+    dd_uwsgi -> dd_postgres [label="DB access"];
+    dd_uwsgi -> dd_valkey [label="Broker"];
+    dd_celerybeat -> dd_postgres [label="DB access"];
+    dd_celerybeat -> dd_valkey [label="Broker"];
+    dd_celeryworker -> dd_postgres [label="DB access"];
+    dd_celeryworker -> dd_valkey [label="Broker"];
+    dd_nginx -> dd_uwsgi [label="HTTP/HTTPS proxy"];
 
-*   **`postgres`**
-    *   **Purpose:** The primary database server, storing all DefectDojo application data.
-    *   **Image:** `docker.io/library/postgres:18.1-alpine` (fully qualified).
-    *   **Dependencies:** None explicit in compose, other services depend on it.
-    *   **Ports:** Internal `5432/tcp`. Not directly exposed to the host.
-    *   **Volumes:** `defectdojo_postgres` for persistent database data.
-    *   **Environment Variables:** Sets `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`.
-    *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
+    # Connections with custom services
+    pfe_dashboard -> dd_nginx [label="DefectDojo API (http://localhost:8080)"];
+    pfe_dashboard -> pfe_ai_service [label="AI Prioritization API (http://localhost:8001)"];
+}
+```
 
-*   **`valkey`**
-    *   **Purpose:** Redis-compatible in-memory data store. Used by Celery for message brokering (queuing tasks) and caching.
-    *   **Image:** `docker.io/valkey/valkey:7.2.11-alpine` (fully qualified).
-    *   **Dependencies:** None explicit.
-    *   **Ports:** Internal `6379/tcp`. Not directly exposed to the host.
-    *   **Volumes:** `defectdojo_redis` for persistent data.
-    *   **Networking:** Connected to the internal `defectdojo_default_network` and the shared external `pfe_network`.
+### 8.2. Manual Podman Commands for DefectDojo
 
-### 8.2. From `docker-compose.yml` (Root Project Services)
+Due to persistent issues with `podman-compose`, the DefectDojo stack was manually started using individual `podman run` commands. This section lists the commands in the correct startup order.
 
-This `docker-compose.yml` orchestrates our custom AI service and dashboard.
+1.  **Remove existing DefectDojo containers (if any):**
+    ```bash
+    podman rm -f dd_postgres dd_valkey dd_initializer dd_uwsgi dd_celerybeat dd_celeryworker dd_nginx
+    ```
 
-*   **`ai_service`**
-    *   **Purpose:** A custom FastAPI application designed to host the `feather.gguf` Large Language Model. It will expose an API endpoint for vulnerability prioritization.
-    *   **Image:** `localhost/mob_ai_service:latest` (built locally from `./ai_service` directory).
-    *   **Dependencies:** None explicit in its compose file. Logically, it might consume data from DefectDojo and provide processed data to the Dashboard.
-    *   **Ports:** Maps host port `8001` to container port `8000`.
-    *   **Volumes:** Mounts the LLM model file (`./feather.gguf`) into the container at `/app/feather.gguf` in read-only mode (`:ro`).
-    *   **Environment Variables:** (To be defined later for model configuration, API keys, etc.).
-    *   **Networking:** Connected to the shared external `pfe_network`.
+2.  **Start PostgreSQL (dd_postgres):**
+    ```bash
+    podman run -d --name dd_postgres \\
+      -e POSTGRES_DB=defectdojo \\
+      -e POSTGRES_USER=defectdojo \\
+      -e POSTGRES_PASSWORD=defectdojo \\
+      -v defectdojo_postgres:/var/lib/postgresql/data \\
+      --network pfe_network \\
+      docker.io/library/postgres:18.1-alpine@sha256:b40d931bd0e7ce6eecc59a5a6ac3b3c04a01e559750e73e7086b6dbd7f8bf545
+    ```
 
-*   **`dashboard`**
-    *   **Purpose:** A custom React/Vite single-page application served by an Nginx web server. It will provide a visualization layer for the overall DevSecOps system.
-    *   **Image:** `localhost/mob_dashboard:latest` (built locally from `./dashboard` directory).
-    *   **Dependencies:** `ai_service` (logically, as it will likely make API calls to the AI service).
-    *   **Ports:** Maps host port `3000` to container port `80`.
-    *   **Volumes:** None explicitly defined as it serves built static assets from its image.
-    *   **Environment Variables:** (To be defined later for API endpoints, feature flags, etc.).
-    *   **Networking:** Connected to the shared external `pfe_network`.
+3.  **Start Valkey (dd_valkey):**
+    ```bash
+    podman run -d --name dd_valkey \\
+      -v defectdojo_redis:/data \\
+      --network pfe_network \\
+      docker.io/valkey/valkey:7.2.11-alpine@sha256:9e483e0fe4c98b631b166b41d530c7ff1b8009a44f261bff28e9d1e2e27db58d
+    ```
 
-### 8.3. Inter-Container Communication & Networking
+4.  **Run Initializer (dd_initializer):**
+    ```bash
+    podman run --rm --name dd_initializer \\
+      -e DD_DATABASE_URL='postgresql://defectdojo:defectdojo@postgres:5432/defectdojo' \\
+      -e DD_ADMIN_USER=admin \\
+      -e DD_ADMIN_MAIL=admin@defectdojo.local \\
+      -e DD_ADMIN_FIRST_NAME=Admin \\
+      -e DD_ADMIN_LAST_NAME=User \\
+      -e DD_INITIALIZE=true \\
+      -e DD_SECRET_KEY='hhZCp@D28z!n@NED*yB!ROMt+WzsY*iq' \\
+      -e DD_CREDENTIAL_AES_256_KEY='&91a*agLqesc*0DJ+2*bAbsUZfR*4nLw' \\
+      -e DD_DATABASE_READINESS_TIMEOUT=30 \\
+      -e DD_CELERY_BROKER_URL='redis://dd_valkey:6379/0' \\
+      -v /home/fun/Desktop/Mob/defectdojo/docker/extra_settings:/app/docker/extra_settings \\
+      --network pfe_network \\
+      --network defectdojo_default_network \\
+      localhost/defectdojo/defectdojo-django:latest \\
+      /wait-for-it.sh dd_postgres:5432 -- /entrypoint-initializer.sh
+    ```
 
-The entire system relies on a unified networking strategy to allow all services to communicate seamlessly.
+5.  **Start uWSGI (dd_uwsgi):**
+    ```bash
+    podman run -d --name dd_uwsgi \\
+      -e DD_DEBUG=False \\
+      -e DD_DJANGO_METRICS_ENABLED=False \\
+      -e DD_DATABASE_URL='postgresql://defectdojo:defectdojo@postgres:5432/defectdojo' \\
+      -e DD_CELERY_BROKER_URL='redis://dd_valkey:6379/0' \\
+      -e DD_SECRET_KEY='hhZCp@D28z!n@NED*yB!ROMt+WzsY*iq' \\
+      -e DD_CREDENTIAL_AES_256_KEY='&91a*agLqesc*0DJ+2*bAbsUZfR*4nLw' \\
+      -e DD_DATABASE_READINESS_TIMEOUT=30 \\
+      -v /home/fun/Desktop/Mob/defectdojo/docker/extra_settings:/app/docker/extra_settings \\
+      -v defectdojo_media:/app/media \\
+      --network pfe_network \\
+      --network defectdojo_default_network \\
+      localhost/defectdojo/defectdojo-django:latest \\
+      /wait-for-it.sh dd_postgres:5432 -t 30 -- /entrypoint-uwsgi.sh
+    ```
 
-*   **`pfe_network` (External, Shared Network):**
-    *   **Type:** External bridge network created manually (`podman network create pfe_network`).
-    *   **Role:** This network acts as the primary communication backbone, allowing services from the `defectdojo/docker-compose.yml` (like `nginx` and `uwsgi`) and services from the root `docker-compose.yml` (like `ai_service` and `dashboard`) to discover and interact with each other. For example, the `dashboard` will make API requests to `defectdojo_nginx_1` (DefectDojo's Nginx service) or `pfe_ai_service`.
+6.  **Start Celery Beat (dd_celerybeat):**
+    ```bash
+    podman run -d --name dd_celerybeat \\
+      -e DD_DATABASE_URL='postgresql://defectdojo:defectdojo@postgres:5432/defectdojo' \\
+      -e DD_CELERY_BROKER_URL='redis://dd_valkey:6379/0' \\
+      -e DD_SECRET_KEY='hhZCp@D28z!n@NED*yB!ROMt+WzsY*iq' \\
+      -e DD_CREDENTIAL_AES_256_KEY='&91a*agLqesc*0DJ+2*bAbsUZfR*4nLw' \\
+      -e DD_DATABASE_READINESS_TIMEOUT=30 \\
+      -v /home/fun/Desktop/Mob/defectdojo/docker/extra_settings:/app/docker/extra_settings \\
+      --network pfe_network \\
+      --network defectdojo_default_network \\
+      localhost/defectdojo/defectdojo-django:latest \\
+      /wait-for-it.sh dd_postgres:5432 -t 30 -- /entrypoint-celery-beat.sh
+    ```
 
-*   **`defectdojo_default_network` (Internal to DefectDojo):**
-    *   **Type:** Internal bridge network managed by `podman-compose` within the DefectDojo stack.
-    *   **Role:** Enables communication between the core DefectDojo services (e.g., `uwsgi` talking to `postgres` or `valkey`) using their service names directly. This encapsulates internal DefectDojo communication.
+7.  **Start Celery Worker (dd_celeryworker):**
+    ```bash
+    podman run -d --name dd_celeryworker \\
+      -e DD_DATABASE_URL='postgresql://defectdojo:defectdojo@postgres:5432/defectdojo' \\
+      -e DD_CELERY_BROKER_URL='redis://dd_valkey:6379/0' \\
+      -e DD_SECRET_KEY='hhZCp@D28z!n@NED*yB!ROMt+WzsY*iq' \\
+      -e DD_CREDENTIAL_AES_256_KEY='&91a*agLqesc*0DJ+2*bAbsUZfR*4nLw' \\
+      -e DD_DATABASE_READINESS_TIMEOUT=30 \\
+      -v /home/fun/Desktop/Mob/defectdojo/docker/extra_settings:/app/docker/extra_settings \\
+      -v defectdojo_media:/app/media \\
+      --network pfe_network \\
+      --network defectdojo_default_network \\
+      localhost/defectdojo/defectdojo-django:latest \\
+      /wait-for-it.sh dd_postgres:5432 -t 30 -- /entrypoint-celery-worker.sh
+    ```
+
+8.  **Start Nginx (dd_nginx):**
+    ```bash
+    podman run -d --name dd_nginx \\
+      -p 8080:8080 -p 8443:8443 \\
+      -e NGINX_METRICS_ENABLED=false \\
+      -e DD_UWSGI_HOST=dd_uwsgi \\
+      -e DD_UWSGI_PORT=3031 \\
+      -v defectdojo_media:/usr/share/nginx/html/media \\
+      --network pfe_network \\
+      --network defectdojo_default_network \\
+      localhost/defectdojo/defectdojo-nginx:latest
+    ```
 
 ## 9. Key Configuration & Secrets
 
@@ -259,10 +308,10 @@ This section outlines the detailed plan for completing the DevSecOps automation 
     - On click, send the finding's data to the `ai_service`'s `/prioritize` endpoint.
 - [x] **Task 3.5: AI Result Display:**
     - Show the AI's returned priority and justification for each finding in the dashboard UI.
-- [ ] **Task 3.6: DefectDojo Update (Optional Stretch Goal):**
+- [x] **Task 3.6: DefectDojo Update (Optional Stretch Goal):**
     - Implement functionality to update the finding's priority in DefectDojo via its API using the AI-generated score.
 
-### Phase 4: Automation & CI/CD (Day 4-5)
+### Phase 4: Automation & CI/CD (Day 4)
 
 - [ ] **Task 4.1: Security Scanning Tool Integration:**
     - Select and integrate a SAST tool (e.g., `semgrep`) and a dependency scanner (e.g., `trivy`).
@@ -276,7 +325,7 @@ This section outlines the detailed plan for completing the DevSecOps automation 
     - **Upload Scan Results to DefectDojo:** Use DefectDojo API to create an engagement and upload scan results (e.g., SARIF format).
     - **(Advanced) AI-Powered Prioritization within CI:** Implement a step to automatically trigger the `ai_service` for prioritization of newly imported findings in DefectDojo, then update DefectDojo.
 
-### Phase 5: Finalization (Day 6-7)
+### Phase 5: Finalization (Day 5)
 
 - [ ] **Task 5.1: Documentation Finalization:** Review and complete `documentation.md`, adding detailed usage instructions and deployment guidelines.
 - [ ] **Task 5.2: Secure Secret Management:** Implement proper environment variable handling for sensitive data in `docker-compose.yml` files and GitHub Actions.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getFindings, prioritizeFinding } from './api';
+import { getFindings, prioritizeFinding, updateFindingPriority } from './api';
 
 function App() {
   const [findings, setFindings] = useState([]);
@@ -22,19 +22,42 @@ function App() {
   }, []);
 
   const handlePrioritize = async (finding) => {
-    // For now, let's just use title, severity, and description
+    // For now, let's just use description, severity, and cwe
     const vulnerabilityData = {
-      description: finding.description,
+      description: finding.description || '',
       severity: finding.severity,
       cwe: finding.cwe // Assuming cwe is available
     };
-    const result = await prioritizeFinding(vulnerabilityData);
-    if (result) {
-      setFindings(prevFindings =>
-        prevFindings.map(f =>
-          f.id === finding.id ? { ...f, ai_priority: result.priority, ai_justification: result.justification } : f
-        )
+    const aiResult = await prioritizeFinding(vulnerabilityData);
+
+    if (aiResult) {
+      // Update finding in DefectDojo via API
+      const updatedDojoFinding = await updateFindingPriority(
+        finding.id,
+        aiResult.priority,
+        aiResult.justification
       );
+
+      if (updatedDojoFinding) {
+        setFindings(prevFindings =>
+          prevFindings.map(f =>
+            f.id === finding.id ? {
+              ...f,
+              severity: updatedDojoFinding.severity, // Update severity from DefectDojo
+              description: updatedDojoFinding.description, // Update description from DefectDojo
+              ai_priority: aiResult.priority,
+              ai_justification: aiResult.justification
+            } : f
+          )
+        );
+      } else {
+        // If DefectDojo API update failed, just update local state with AI result
+        setFindings(prevFindings =>
+          prevFindings.map(f =>
+            f.id === finding.id ? { ...f, ai_priority: aiResult.priority, ai_justification: aiResult.justification } : f
+          )
+        );
+      }
     }
   };
 
