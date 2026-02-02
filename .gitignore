@@ -3,4 +3,3 @@ node_modules/
 feather.gguf
 package.json
 package-lock.json
-shell.nix

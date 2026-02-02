@@ -1,0 +1,32 @@
+digraph Architecture {
+    rankdir=LR;
+    node [shape=box style="filled" fillcolor="lightgray"];
+
+    subgraph cluster_defectdojo {
+        label = "DefectDojo Stack";
+        color = blue;
+
+        dd_postgres [label="PostgreSQL\n(dd_postgres)" fillcolor="lightblue"];
+        dd_valkey [label="Valkey/Redis\n(dd_valkey)" fillcolor="lightblue"];
+        dd_uwsgi [label="DefectDojo Django App\n(dd_uwsgi)" fillcolor="lightgreen"];
+        dd_celerybeat [label="Celery Beat\n(dd_celerybeat)" fillcolor="lightgreen"];
+        dd_celeryworker [label="Celery Worker\n(dd_celeryworker)" fillcolor="lightgreen"];
+        dd_nginx [label="DefectDojo Nginx\n(dd_nginx)" fillcolor="lightpink"];
+    }
+
+    pfe_ai_service [label="AI Service\n(pfe_ai_service)" fillcolor="gold"];
+    pfe_dashboard [label="React Dashboard\n(pfe_dashboard)" fillcolor="orange"];
+
+    # Connections within DefectDojo stack
+    dd_uwsgi -> dd_postgres [label="DB access"];
+    dd_uwsgi -> dd_valkey [label="Broker"];
+    dd_celerybeat -> dd_postgres [label="DB access"];
+    dd_celerybeat -> dd_valkey [label="Broker"];
+    dd_celeryworker -> dd_postgres [label="DB access"];
+    dd_celeryworker -> dd_valkey [label="Broker"];
+    dd_nginx -> dd_uwsgi [label="HTTP/HTTPS proxy"];
+
+    # Connections with custom services
+    pfe_dashboard -> dd_nginx [label="DefectDojo API (http://localhost:8080)"];
+    pfe_dashboard -> pfe_ai_service [label="AI Prioritization API (http://localhost:8001)"];
+}
