@@ -6,11 +6,31 @@ This guide provides instructions for Windows users leveraging Docker Desktop to 
 
 This project integrates OWASP DefectDojo for vulnerability management with a custom AI service for intelligent vulnerability prioritization, visualized through a React-based web dashboard. This guide focuses on getting the entire stack running efficiently on a Windows machine using Docker Desktop.
 
+```bash
+cd django-DefectDojo
+
+# Check if your installed toolkit is compatible
+./docker/docker-compose-check.sh
+
+# Building Docker images
+docker compose build
+
+# Run the application
+# (see https://github.com/DefectDojo/django-DefectDojo/blob/dev/readme-docs/DOCKER.md for more info)
+docker compose up -d
+
+# Obtain admin credentials. The initializer can take up to 3 minutes to run.
+# Use docker compose logs -f initializer to track its progress.
+docker compose logs initializer | grep "Admin password:"
+```
+
 ### Step  2: Create the Shared Network
 
 The project services communicate over a shared Docker network. Create this network:
 
 ```bash
+cd ..
+
 docker network create pfe_network
 ```
 
