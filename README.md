@@ -7,7 +7,7 @@ This guide provides instructions for Windows users leveraging Docker Desktop to 
 This project integrates OWASP DefectDojo for vulnerability management with a custom AI service for intelligent vulnerability prioritization, visualized through a React-based web dashboard. This guide focuses on getting the entire stack running efficiently on a Windows machine using Docker Desktop.
 
 ```bash
-cd django-DefectDojo
+cd defectdojo
 
 # Check if your installed toolkit is compatible
 ./docker/docker-compose-check.sh
